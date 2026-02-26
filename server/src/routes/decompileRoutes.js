@@ -1,5 +1,5 @@
 import express from 'express';
-import { decompileAPK, decompileDylib, decompileJar, analyzeFile, beautifyCode, downloadDylibProject, batchDecompileDylib } from '../controllers/decompileController.js';
+import { decompileAPK, decompileDylib, decompileJar, analyzeFile, beautifyCode, downloadDylibProject, batchDecompileDylib, fetchWebsite } from '../controllers/decompileController.js';
 
 const router = express.Router();
 
@@ -10,5 +10,6 @@ router.post('/dylib/download', downloadDylibProject);
 router.post('/jar', decompileJar);
 router.post('/analyze', analyzeFile);
 router.post('/beautify', beautifyCode);
+router.post('/fetch', fetchWebsite);
 
 export default router;

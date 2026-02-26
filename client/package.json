@@ -10,9 +10,10 @@
     "react-icons": "^4.8.0"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "dev": "react-scripts start"
+    "start": "node server.js",
+    "serve": "node server.js",
+    "build": "echo \"No build step for static client\"",
+    "dev": "node server.js"
   },
   "eslintConfig": {
     "extends": "react-app"

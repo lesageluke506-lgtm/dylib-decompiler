@@ -435,6 +435,12 @@
         <!-- ANALYZER TAB -->
         <div id="analyzer" class="tab-content">
             <div class="card">
+                <h2>🌐 Website Fetcher</h2>
+                <input type="text" id="fetchUrl" placeholder="https://example.com" style="width:100%;padding:8px; box-sizing:border-box;">
+                <button onclick="fetchWebsite()" style="margin-top:10px;">🔄 Fetch & Analyze</button>
+                <div id="fetchResult" class="results"></div>
+            </div>
+            <div class="card">
                 <h2>🔍 Universal File Analyzer</h2>
                 <div class="upload-area" onclick="document.getElementById('fileInput').click()">
                     <input type="file" id="fileInput" onchange="handleFileUpload('file', event)">
@@ -796,6 +802,58 @@
                     html += `</div>`;
                 }
 
+                // Network Analysis Section
+                if (data.network_analysis) {
+                    html += `<div class="analysis-box" style="background-color: #e8f5e9; border-left: 4px solid #4caf50;">`;
+                    html += `<h5>🌐 Network & Backend Analysis</h5>`;
+                    
+                    // Backends
+                    if (data.network_analysis.backends && data.network_analysis.backends.length > 0) {
+                        html += `<div style="margin-top: 10px;">`;
+                        html += `<strong>Backends Found (${data.network_analysis.backends.length}):</strong>`;
+                        html += `<div style="max-height: 200px; overflow-y: auto; margin-top: 5px;">`;
+                        data.network_analysis.backends.forEach(b => {
+                            html += `<div style="padding: 5px; font-family: monospace; font-size: 0.85em; background: white; margin: 3px 0; padding: 5px; border-radius: 3px;">🌐 ${escapeHtml(b)}</div>`;
+                        });
+                        html += `</div></div>`;
+                    }
+                    
+                    // APIs
+                    if (data.network_analysis.apis && data.network_analysis.apis.length > 0) {
+                        html += `<div style="margin-top: 10px;">`;
+                        html += `<strong>API Endpoints Found (${data.network_analysis.apis.length}):</strong>`;
+                        html += `<div style="max-height: 150px; overflow-y: auto; margin-top: 5px;">`;
+                        data.network_analysis.apis.forEach(a => {
+                            html += `<div style="padding: 4px; font-family: monospace; font-size: 0.85em; background: white; margin: 2px 0; padding: 4px; border-radius: 3px;">🔌 ${escapeHtml(a)}</div>`;
+                        });
+                        html += `</div></div>`;
+                    }
+                    
+                    // Domains
+                    if (data.network_analysis.domains && data.network_analysis.domains.length > 0) {
+                        html += `<div style="margin-top: 10px;">`;
+                        html += `<strong>Domains (${data.network_analysis.domains.length}):</strong>`;
+                        html += `<div style="max-height: 120px; overflow-y: auto; margin-top: 5px;">`;
+                        data.network_analysis.domains.forEach(d => {
+                            html += `<span style="display: inline-block; padding: 4px 8px; margin: 3px; background: #fff9c4; border-radius: 3px; font-size: 0.85em;">🔗 ${escapeHtml(d)}</span>`;
+                        });
+                        html += `</div></div>`;
+                    }
+                    
+                    // IPs
+                    if (data.network_analysis.ips && data.network_analysis.ips.length > 0) {
+                        html += `<div style="margin-top: 10px;">`;
+                        html += `<strong>IP Addresses (${data.network_analysis.ips.length}):</strong>`;
+                        html += `<div style="max-height: 120px; overflow-y: auto; margin-top: 5px;">`;
+                        data.network_analysis.ips.forEach(ip => {
+                            html += `<span style="display: inline-block; padding: 4px 8px; margin: 3px; background: #ffccbc; border-radius: 3px; font-size: 0.85em;">🔒 ${escapeHtml(ip)}</span>`;
+                        });
+                        html += `</div></div>`;
+                    }
+                    
+                    html += `</div>`;
+                }
+
                 // Extracted Classes
                 if (data.extracted && data.extracted.classes && data.extracted.classes.length > 0) {
                     html += `<div class="analysis-box">`;
@@ -914,6 +972,29 @@
         function escapeHtml(text) {
             const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
             return text.replace(/[&<>"']/g, c => map[c]);
+        }
+
+        async function fetchWebsite() {
+            const url = document.getElementById('fetchUrl').value.trim();
+            if (!url) {
+                showStatus('⚠️ Please enter a URL', 'error');
+                return;
+            }
+            showStatus('🌍 Fetching website...', 'info');
+            try {
+                const res = await fetch(`${API_URL}/fetch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await res.json();
+                let html = `<h4>URL: ${escapeHtml(data.url)}</h4>`;
+                html += `<div style="max-height:400px; overflow:auto; background:#f5f5f5; padding:10px; white-space:pre-wrap;">${escapeHtml(data.content || '').substring(0,2000)}</div>`;
+                document.getElementById('fetchResult').innerHTML = html;
+                showStatus('✅ Website fetched', 'success');
+            } catch (err) {
+                showStatus(`❌ Fetch error: ${err.message}`, 'error');
+            }
         }
 
         async function downloadDylibProject(zipPath, filename) {

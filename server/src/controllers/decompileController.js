@@ -5,6 +5,7 @@ import beautifier from 'js-beautify';
 import unzipper from 'unzipper';
 import crypto from 'crypto';
 import archiver from 'archiver';
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -145,6 +146,10 @@ const ImprovedAnalyzer = {
 // ENHANCED DYLIB DECOMPILER
 // ==========================================
 export async function decompileDylib(req, res) {
+    /*
+      decompileDylib already analyzes and generates complete project
+      .m file.  We'll also write a .mm copy so Obj-C++ builds succeed.
+    */
   try {
     const { filePath } = req.body;
     
@@ -183,6 +188,7 @@ export async function decompileDylib(req, res) {
     // Generate files
     const generatedFiles = {
       implementation: generateImplementation(baseFilename, classes, methods, deobfuscated),
+      // note: .mm will be created as copy of implementation later
       header: generateHeader(baseFilename, classes, methods),
       makefile: generateAdvancedMakefile(baseFilename),
       cmake: generateCMakeLists(baseFilename),
@@ -194,7 +200,10 @@ export async function decompileDylib(req, res) {
     };
     
     // Write files
-    fs.writeFileSync(path.join(sourceDir, `${baseFilename.toLowerCase()}.m`), generatedFiles.implementation);
+    const implPath = path.join(sourceDir, `${baseFilename.toLowerCase()}.m`);
+    fs.writeFileSync(implPath, generatedFiles.implementation);
+    // duplicate as .mm for Obj-C++ compatibility
+    fs.writeFileSync(path.join(sourceDir, `${baseFilename.toLowerCase()}.mm`), generatedFiles.implementation);
     fs.writeFileSync(path.join(headersDir, `${baseFilename.toLowerCase()}.h`), generatedFiles.header);
     fs.writeFileSync(path.join(projectDir, 'Makefile'), generatedFiles.makefile);
     fs.writeFileSync(path.join(projectDir, 'CMakeLists.txt'), generatedFiles.cmake);
@@ -226,6 +235,15 @@ export async function decompileDylib(req, res) {
         methods: methods.slice(0, 50),
         imports: imports.slice(0, 50)
       },
+      network_analysis: {
+        backends: analysis.backends ? [...new Set(analysis.backends)].slice(0, 30) : [],
+        apis: analysis.apis ? [...new Set(analysis.apis)].slice(0, 30) : [],
+        domains: analysis.domains ? [...new Set(analysis.domains)].slice(0, 30) : [],
+        ips: analysis.ips ? [...new Set(analysis.ips)].slice(0, 30) : [],
+        network_libraries: analysis.networkLibraries || [],
+        network_calls: analysis.networkCalls ? analysis.networkCalls.slice(0, 20) : [],
+        sample_requests: analysis.sampleRequests ? analysis.sampleRequests.slice(0, 5) : []
+      },
       security: analysis,
       downloads: {
         zip: path.basename(zipPath),
@@ -242,7 +260,7 @@ export async function decompileDylib(req, res) {
         '📄 control (Debian package)',
         '📄 README.md (Documentation)'
       ],
-      message: `✅ SUCCESS: Dylib decompiled with ${classes.length} classes, ${methods.length} methods. Complete project generated!`
+      message: `✅ SUCCESS: Dylib decompiled with ${classes.length} classes, ${methods.length} methods. Found ${(analysis.backends || []).length} backends, ${(analysis.apis || []).length} APIs. Complete project generated!`
     });
   } catch (error) {
     console.error('Dylib error:', error);
@@ -437,6 +455,19 @@ export async function downloadDylibProject(req, res) {
 // ==========================================
 // ADVANCED CODE GENERATORS
 // ==========================================
+
+// simple website fetcher to download HTML for a given URL
+export async function fetchWebsite(req, res) {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: 'URL required' });
+    const resp = await fetch(url);
+    const text = await resp.text();
+    res.json({ url, status: resp.status, headers: Object.fromEntries(resp.headers.entries()), content: text });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
 
 function generateImplementation(baseFilename, classes, methods, strings) {
   const className = toPascalCase(baseFilename);
