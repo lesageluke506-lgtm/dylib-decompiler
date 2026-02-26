@@ -1,0 +1,9 @@
+# Ignore uploaded files
+uploads/
+extracted/
+node_modules/
+.env.local
+.DS_Store
+*.log
+dist/
+build/

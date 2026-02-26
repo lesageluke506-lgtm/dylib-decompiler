@@ -1,0 +1,13 @@
+run = "npm run dev:both"
+entrypoint = "server/src/index.js"
+
+[deployment]
+build = ["npm", "install"]
+
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
+[[ports]]
+localPort = 3000
+externalPort = 3000
