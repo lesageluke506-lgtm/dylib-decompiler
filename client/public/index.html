@@ -851,6 +851,21 @@
                         html += `</div></div>`;
                     }
                     
+                    // RPC Calls
+                    if (data.network_analysis.rpc_calls && data.network_analysis.rpc_calls.length > 0) {
+                        html += `<div style="margin-top: 15px; padding: 10px; background: #fff3e0; border-radius: 5px; border-left: 4px solid #ff9800;">`;
+                        html += `<strong>RPC Methods Detected (${data.network_analysis.rpc_calls.length}):</strong>`;
+                        html += `<div style="margin-top: 8px;">`;
+                        data.network_analysis.rpc_calls.forEach(rpc => {
+                            html += `<span style="display: inline-block; padding: 4px 8px; margin: 3px; background: white; border: 1px solid #ff9800; border-radius: 3px; font-family: monospace; font-size: 0.85em; color: #d32f2f; font-weight: 600;">⚙️ ${escapeHtml(rpc)}</span>`;
+                        });
+                        html += `</div>`;
+                        if (data.network_analysis.has_jsonrpc) {
+                            html += `<div style="margin-top: 8px; color: #d32f2f; font-weight: 600;">⚠️ JSON-RPC Protocol Detected</div>`;
+                        }
+                        html += `</div>`;
+                    }
+                    
                     html += `</div>`;
                 }
 

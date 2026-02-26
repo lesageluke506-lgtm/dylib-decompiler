@@ -39,17 +39,22 @@ const ImprovedAnalyzer = {
 
     // Extract backends, links, and domains
     const backendPatterns = {
-      urls: /https?:\/\/[^\s\x00"'<>]+/gi,
-      // hostnames with optional port (example.com:8080, localhost:3000)
-      hostports: /(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d{1,5})?|localhost(?::\d{1,5})?/gi,
+      // HTTP, HTTPS, WebSocket URLs (with looser end condition)
+      urls: /(?:https?|wss?):\/\/[^\s\x00"'<>\[\]{}]{5,}/gi,
+      // Improved hostname+port pattern
+      hostports: /(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d{1,5})?(?:\/[^\s]*)?\b|localhost(?::\d{1,5})?(?:\/[^\s]*)?\b/gi,
       domains: /(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}/gi,
       ips: /(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?::\d{1,5})?/g,
-      apis: /(?:\/api\/|\/graphql)(?:[a-zA-Z0-9\/._-]*)/gi,
+      apis: /(?:\/api\/|\/graphql|\/rpc)(?:[a-zA-Z0-9\/._\-?=&]*)/gi,
       graphql: /graphql/gi,
-      endpoints: /(?:post|get|put|delete|patch)\s*\(?['\"]?\/?[a-zA-Z0-9\/._-]+['\"]?/gi,
+      endpoints: /(?:post|get|put|delete|patch|rpc)\s*\(?['\"]?\/?[a-zA-Z0-9\/._-]+['\"]?/gi,
       fetchCall: /fetch\s*\(\s*['\"][^'\"]+['\"]/gi,
       axiosCall: /axios\.(?:get|post|put|delete|patch)\s*\(\s*['\"][^'\"]+['\"]/gi,
-      networkLibs: /\b(?:NSURLSession|AFHTTPSessionManager|Alamofire|NSURLConnection|CFNetwork)\b/gi
+      // RPC method calls (eth_*, web3_*, etc)
+      rpcCalls: /\b(?:eth_|web3_|net_|personal_|admin_|miner_|shh_|db_|txpool_|debug_|trace_)[\w]+\b/gi,
+      // JSON-RPC patterns
+      jsonrpc: /jsonrpc|"method"\s*:\s*"[\w_]+"|"params"\s*:\s*\[/gi,
+      networkLibs: /\b(?:NSURLSession|AFHTTPSessionManager|Alamofire|NSURLConnection|CFNetwork|curl|libcurl)\b/gi
     };
 
     // Extract all URLs
@@ -89,6 +94,18 @@ const ImprovedAnalyzer = {
     if (code.match(backendPatterns.graphql)) {
       analysis.apis = analysis.apis || [];
       analysis.apis.push('/graphql');
+    }
+
+    // Extract RPC calls (Ethereum, Web3, etc)
+    const rpcMatches = code.match(backendPatterns.rpcCalls);
+    if (rpcMatches) {
+      analysis.rpcCalls = [...new Set(rpcMatches)];
+    }
+
+    // Extract JSON-RPC patterns
+    const jsonrpcMatches = code.match(backendPatterns.jsonrpc);
+    if (jsonrpcMatches) {
+      analysis.hasJsonRpc = jsonrpcMatches.length > 0;
     }
 
     // Extract fetch/axios calls
@@ -240,6 +257,8 @@ export async function decompileDylib(req, res) {
         apis: analysis.apis ? [...new Set(analysis.apis)].slice(0, 30) : [],
         domains: analysis.domains ? [...new Set(analysis.domains)].slice(0, 30) : [],
         ips: analysis.ips ? [...new Set(analysis.ips)].slice(0, 30) : [],
+        rpc_calls: analysis.rpcCalls ? [...new Set(analysis.rpcCalls)].slice(0, 30) : [],
+        has_jsonrpc: analysis.hasJsonRpc || false,
         network_libraries: analysis.networkLibraries || [],
         network_calls: analysis.networkCalls ? analysis.networkCalls.slice(0, 20) : [],
         sample_requests: analysis.sampleRequests ? analysis.sampleRequests.slice(0, 5) : []
