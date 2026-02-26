@@ -660,6 +660,22 @@
                 }
                 html += `</div></div>`;
             }
+            // Display discovered API paths
+            if (data.summary && data.summary.uniqueAPIs > 0) {
+                html += `<div class="analysis-box" style="background-color: #e8f5e9; border-left: 4px solid #43a047;">`;
+                html += `<h5>🔌 Discovered API Paths (${data.summary.uniqueAPIs})</h5>`;
+                if (data.allAPIs && data.allAPIs.length) {
+                    html += `<div style="max-height: 200px; overflow-y: auto; margin-top: 10px;">`;
+                    data.allAPIs.slice(0,30).forEach(api => {
+                        html += `<div style="padding: 4px; font-family: monospace; font-size: 0.85em;">➡️ ${escapeHtml(api)}</div>`;
+                    });
+                    if (data.allAPIs.length > 30) {
+                        html += `<div style="padding: 10px; color: #666; text-align: center; font-weight: 600;">... and ${data.allAPIs.length - 30} more</div>`;
+                    }
+                    html += `</div>`;
+                }
+                html += `</div>`;
+            }
 
             // Display discovered domains
             if (data.allDomains && data.allDomains.length > 0) {
@@ -694,6 +710,7 @@
                 html += `<div style="margin-top: 20px; text-align: center;">`;
                 html += `<button onclick="downloadDylibProject('${data.zipPath}', '${data.batchId}-report.zip')" style="padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 1em;">📥 Download Batch Report (ZIP)</button>`;
                 html += `</div>`;
+                html += `<div style="color:#666; font-size:0.9em; margin-top:10px; text-align:center;">(see "sampleRequests" and "networkCalls" fields inside the JSON)</div>`;
             }
 
             resultsDiv.innerHTML = html;
@@ -754,6 +771,27 @@
                     }
                     if (data.security.riskScore) {
                         html += `<div style="color: #667eea; font-weight: 600; margin-top: 5px;">Risk Score: ${data.security.riskScore}</div>`;
+                    }
+                    if (data.security.sampleRequests && data.security.sampleRequests.length) {
+                        html += `<div style="margin-top:15px;"><h6>💻 Sample Network Requests</h6>`;
+                        data.security.sampleRequests.forEach(sn => {
+                            html += `<pre style="background:#f5f5f5; padding:8px; border-radius:4px; font-size:0.85em;">${escapeHtml(sn)}</pre>`;
+                        });
+                        html += `</div>`;
+                    }
+                    if (data.security.networkLibraries && data.security.networkLibraries.length) {
+                        html += `<div style="margin-top:15px;"><h6>📦 Detected Network Libraries</h6><div style="font-family:monospace;">`;
+                        data.security.networkLibraries.forEach(lib => {
+                            html += `<span style="margin-right:10px;">${escapeHtml(lib)}</span>`;
+                        });
+                        html += `</div></div>`;
+                    }
+                    if (data.security.networkCalls && data.security.networkCalls.length) {
+                        html += `<div style="margin-top:15px;"><h6>🔗 Exposed Calls (fetch/axios)</h6>`;
+                        data.security.networkCalls.forEach(call => {
+                            html += `<pre style="background:#fafafa; padding:6px; border-radius:3px; font-size:0.85em;">${escapeHtml(call)}</pre>`;
+                        });
+                        html += `</div>`;
                     }
                     html += `</div>`;
                 }

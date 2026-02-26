@@ -39,10 +39,16 @@ const ImprovedAnalyzer = {
     // Extract backends, links, and domains
     const backendPatterns = {
       urls: /https?:\/\/[^\s\x00"'<>]+/gi,
+      // hostnames with optional port (example.com:8080, localhost:3000)
+      hostports: /(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d{1,5})?|localhost(?::\d{1,5})?/gi,
       domains: /(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}/gi,
-      ips: /(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)/g,
-      apis: /\/api\/[a-zA-Z0-9\/_-]+/gi,
-      endpoints: /(?:post|get|put|delete|patch)\s+['\"]?\/[a-zA-Z0-9\/_-]+['\"]?/gi
+      ips: /(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?::\d{1,5})?/g,
+      apis: /(?:\/api\/|\/graphql)(?:[a-zA-Z0-9\/._-]*)/gi,
+      graphql: /graphql/gi,
+      endpoints: /(?:post|get|put|delete|patch)\s*\(?['\"]?\/?[a-zA-Z0-9\/._-]+['\"]?/gi,
+      fetchCall: /fetch\s*\(\s*['\"][^'\"]+['\"]/gi,
+      axiosCall: /axios\.(?:get|post|put|delete|patch)\s*\(\s*['\"][^'\"]+['\"]/gi,
+      networkLibs: /\b(?:NSURLSession|AFHTTPSessionManager|Alamofire|NSURLConnection|CFNetwork)\b/gi
     };
 
     // Extract all URLs
@@ -50,6 +56,13 @@ const ImprovedAnalyzer = {
     if (urlMatches) {
       analysis.urls = [...new Set(urlMatches)];
       analysis.backends = [...new Set(urlMatches)];
+    }
+
+    // Extract host:port patterns (some libs split URLs)
+    const hostportMatches = code.match(backendPatterns.hostports);
+    if (hostportMatches) {
+      analysis.hostports = [...new Set(hostportMatches)];
+      analysis.backends.push(...analysis.hostports);
     }
 
     // Extract domains
@@ -62,18 +75,50 @@ const ImprovedAnalyzer = {
     const ipMatches = code.match(backendPatterns.ips);
     if (ipMatches) {
       analysis.ips = [...new Set(ipMatches)];
+      analysis.backends.push(...analysis.ips);
     }
 
-    // Extract API endpoints
+    // Extract API endpoints (including /graphql)
     const apiMatches = code.match(backendPatterns.apis);
     if (apiMatches) {
       analysis.apis = [...new Set(apiMatches)];
     }
 
-    // Extract endpoints
-    const endpointMatches = code.match(backendPatterns.endpoints);
-    if (endpointMatches) {
-      analysis.endpoints = [...new Set(endpointMatches)];
+    // look for graphql keyword alone
+    if (code.match(backendPatterns.graphql)) {
+      analysis.apis = analysis.apis || [];
+      analysis.apis.push('/graphql');
+    }
+
+    // Extract fetch/axios calls
+    const fetchMatches = code.match(backendPatterns.fetchCall);
+    const axiosMatches = code.match(backendPatterns.axiosCall);
+    if (fetchMatches || axiosMatches) {
+      analysis.networkCalls = [];
+      if (fetchMatches) analysis.networkCalls.push(...fetchMatches.map(m => m.replace(/fetch\s*\(/i, '').trim()));
+      if (axiosMatches) analysis.networkCalls.push(...axiosMatches.map(m => m.replace(/axios\.[a-z]+\s*\(/i, '').trim()));
+    }
+
+    // library detection
+    const libMatches = code.match(backendPatterns.networkLibs);
+    if (libMatches) {
+      analysis.networkLibraries = [...new Set(libMatches)];
+    }
+
+    // Generate sample request snippets for each backend URL
+    function makeFetchSnippet(url) {
+      return `fetch('${url}', {
+  method: 'GET',
+  headers: { 'Content-Type': 'application/json' }
+})
+  .then(r => r.json())
+  .then(console.log)
+  .catch(console.error);`;
+    }
+
+    const allBackends = analysis.backends || [];
+    if (allBackends.length > 0) {
+      analysis.sampleRequests = [...new Set(allBackends.map(makeFetchSnippet))];
     }
 
     for (const [category, regexes] of Object.entries(patterns)) {
@@ -1083,6 +1128,11 @@ function createZipArchive(sourceDir, zipPath) {
 
     output.on('close', () => resolve(zipPath));
     archive.on('error', reject);
+    archive.on('warning', err => {
+      // log but don't fail on non-fatal warnings
+      if (err.code === 'ENOENT') console.warn('Archiver warning', err);
+      else reject(err);
+    });
 
     archive.pipe(output);
     archive.directory(sourceDir, path.basename(sourceDir));
@@ -1120,6 +1170,7 @@ export async function batchDecompileDylib(req, res) {
       allLinks: [],
       allDomains: [],
       allIPs: [],
+      allAPIs: [],
       summary: null
     };
 
@@ -1188,12 +1239,14 @@ export async function batchDecompileDylib(req, res) {
     results.allLinks = [...new Set(results.allLinks)];
     results.allDomains = [...new Set(results.allDomains)];
     results.allIPs = [...new Set(results.allIPs)];
+    results.allAPIs = [...new Set(results.allAPIs)];
 
     results.summary = {
       uniqueBackends: results.allBackends.length,
       uniqueLinks: results.allLinks.length,
       uniqueDomains: results.allDomains.length,
       uniqueIPs: results.allIPs.length,
+      uniqueAPIs: results.allAPIs.length,
       successRate: `${Math.round((results.processed / filePaths.length) * 100)}%`
     };
 
@@ -1210,6 +1263,7 @@ export async function batchDecompileDylib(req, res) {
       `Failed: ${results.failed}`,
       ``,
       `DISCOVERED BACKENDS (${results.allBackends.length})`,
+      `DISCOVERED API PATHS (${results.allAPIs.length})`,
       `================================`,
       ...results.allBackends.slice(0, 100),
       ``,
